@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#303642">
+  <meta name="description" content="Browser preview of Airalene A. Rivera's desktop and mobile Hi-Fi portfolio framework.">
+  <title>Portfolio Hi-Fi Framework | Airalene A. Rivera</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      color-scheme: light;
+      --navy: #303642;
+      --ink: #252a32;
+      --muted: #707783;
+      --line: #e5e7eb;
+      --paper: #f3f4f6;
+      --accent: #9b8768;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: var(--ink); background: var(--paper); font-family: "DM Sans", sans-serif; }
+    .topbar {
+      position: sticky;
+      z-index: 2;
+      top: 0;
+      display: flex;
+      min-height: 70px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 10px clamp(16px, 4vw, 52px);
+      border-bottom: 1px solid var(--line);
+      background: rgba(255,255,255,.96);
+      backdrop-filter: blur(12px);
+    }
+    h1 { margin: 0; font: 700 1rem Manrope, sans-serif; }
+    h1 span { color: var(--accent); }
+    .controls { display: flex; flex-wrap: wrap; gap: 8px; }
+    .controls button, .download {
+      min-height: 38px;
+      padding: 8px 13px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: white;
+      color: var(--ink);
+      cursor: pointer;
+      font: 600 .84rem "DM Sans", sans-serif;
+      text-decoration: none;
+    }
+    .controls button[aria-pressed="true"] { border-color: var(--navy); background: var(--navy); color: white; }
+    .download { border-color: #d8d0c4; color: #6f604c; }
+    main { padding: 24px 14px 56px; }
+    .canvas {
+      width: min(100%, 1500px);
+      margin: 0 auto;
+      overflow: auto;
+      border: 1px solid #e0e3e8;
+      border-radius: 10px;
+      background: white;
+      box-shadow: 0 12px 36px rgba(37,42,52,.08);
+    }
+    svg { display: block; width: 100%; height: auto; background: white; }
+    #status { padding: 40px 20px; color: var(--muted); text-align: center; }
+    #status[hidden] { display: none; }
+    @media (max-width: 650px) {
+      .topbar { align-items: flex-start; flex-direction: column; gap: 8px; padding-block: 12px; }
+      .controls { width: 100%; }
+      .controls button { flex: 1; }
+      main { padding: 12px 8px 32px; }
+      .canvas { border-radius: 6px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <h1>Airalene A. Rivera <span>·</span> Hi-Fi Framework</h1>
+    <nav class="controls" aria-label="Framework preview controls">
+      <button type="button" data-page="0" aria-pressed="true">Desktop</button>
+      <button type="button" data-page="1" aria-pressed="false">Mobile</button>
+      <a class="download" href="portfolio-hifi-framework-clean.drawio" download>Download editable file</a>
+    </nav>
+  </header>
+  <main>
+    <div class="canvas">
+      <div id="status" role="status">Loading the framework preview…</div>
+      <svg id="diagram" xmlns="http://www.w3.org/2000/svg" xmlns:xhtml="http://www.w3.org/1999/xhtml" role="img" aria-label="Desktop Hi-Fi framework preview" hidden></svg>
+    </div>
+  </main>
+  <script>
+    "use strict";
+
+    const status = document.querySelector("#status");
+    const svg = document.querySelector("#diagram");
+    const pageButtons = [...document.querySelectorAll("[data-page]")];
+    let pages = [];
+    let activePage = 0;
+
+    function styleMap(styleText) {
+      return Object.fromEntries(styleText.split(";").filter(Boolean).map((part) => {
+        const separator = part.indexOf("=");
+        return separator < 0 ? [part, "1"] : [part.slice(0, separator), part.slice(separator + 1)];
+      }));
+    }
+
+    function safeMarkup(value) {
+      const parsed = new DOMParser().parseFromString(`<body>${value}</body>`, "text/html");
+      const allowed = new Set(["BR", "B", "STRONG", "EM", "FONT"]);
+      const clean = (node) => {
+        if (node.nodeType === Node.TEXT_NODE) return node.textContent;
+        if (node.nodeType !== Node.ELEMENT_NODE || !allowed.has(node.tagName)) {
+          return [...node.childNodes].map(clean).join("");
+        }
+        if (node.tagName === "BR") return "<br>";
+        if (node.tagName === "FONT") {
+          const color = /^#[0-9a-f]{3,8}$/i.test(node.getAttribute("color") || "") ? node.getAttribute("color") : "";
+          const size = /^\d+(?:\.\d+)?px$/.test(node.style.fontSize) ? node.style.fontSize : "";
+          const style = [color && `color:${color}`, size && `font-size:${size}`].filter(Boolean).join(";");
+          return `<span${style ? ` style="${style}"` : ""}>${[...node.childNodes].map(clean).join("")}</span>`;
+        }
+        const tag = node.tagName.toLowerCase();
+        return `<${tag}>${[...node.childNodes].map(clean).join("")}</${tag}>`;
+      };
+      return [...parsed.body.childNodes].map(clean).join("");
+    }
+
+    function renderPage(index) {
+      const page = pages[index];
+      const model = page.querySelector("mxGraphModel");
+      const width = Number(model.getAttribute("pageWidth"));
+      const height = Number(model.getAttribute("pageHeight"));
+      svg.replaceChildren();
+      svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+      svg.setAttribute("aria-label", `${page.getAttribute("name")} framework preview`);
+      svg.style.aspectRatio = `${width} / ${height}`;
+
+      const cells = [...page.querySelectorAll("mxCell[vertex='1']")];
+      for (const cell of cells) {
+        const geometry = cell.querySelector(":scope > mxGeometry");
+        if (!geometry) continue;
+        const x = Number(geometry.getAttribute("x") || 0);
+        const y = Number(geometry.getAttribute("y") || 0);
+        const w = Number(geometry.getAttribute("width") || 0);
+        const h = Number(geometry.getAttribute("height") || 0);
+        if (!w || !h) continue;
+
+        const style = styleMap(cell.getAttribute("style") || "");
+        const fill = style.fillColor || "none";
+        const stroke = style.strokeColor || "none";
+        const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        group.setAttribute("data-cell", cell.getAttribute("id") || "");
+
+        if (fill !== "none" || stroke !== "none") {
+          const shape = document.createElementNS("http://www.w3.org/2000/svg", style.ellipse === "1" ? "ellipse" : "rect");
+          if (style.ellipse === "1") {
+            shape.setAttribute("cx", String(x + w / 2));
+            shape.setAttribute("cy", String(y + h / 2));
+            shape.setAttribute("rx", String(w / 2));
+            shape.setAttribute("ry", String(h / 2));
+          } else {
+            shape.setAttribute("x", String(x));
+            shape.setAttribute("y", String(y));
+            shape.setAttribute("width", String(w));
+            shape.setAttribute("height", String(h));
+            if (style.rounded === "1") shape.setAttribute("rx", String(Math.min(14, Number(style.arcSize || 0) * Math.min(w, h) / 100 || 6)));
+          }
+          shape.setAttribute("fill", fill);
+          shape.setAttribute("stroke", stroke);
+          shape.setAttribute("stroke-width", style.strokeWidth || "1");
+          group.append(shape);
+        }
+
+        const value = cell.getAttribute("value") || "";
+        if (value) {
+          const foreign = document.createElementNS("http://www.w3.org/2000/svg", "foreignObject");
+          foreign.setAttribute("x", String(x));
+          foreign.setAttribute("y", String(y));
+          foreign.setAttribute("width", String(w));
+          foreign.setAttribute("height", String(h));
+          const label = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+          const padding = Number(style.spacing || 0);
+          label.setAttribute("style", [
+            "width:100%", "height:100%", "box-sizing:border-box", "display:flex", "flex-direction:column",
+            `align-items:${style.align === "center" ? "center" : style.align === "right" ? "flex-end" : "flex-start"}`,
+            `justify-content:${style.verticalAlign === "top" ? "flex-start" : style.verticalAlign === "bottom" ? "flex-end" : "center"}`,
+            `text-align:${style.align || "left"}`, `padding:${padding}px`,
+            `font-family:${style.fontFamily || "Arial"},sans-serif`,
+            `font-size:${style.fontSize || 14}px`,
+            `font-weight:${(Number(style.fontStyle || 0) & 1) ? "700" : "400"}`,
+            `font-style:${(Number(style.fontStyle || 0) & 2) ? "italic" : "normal"}`,
+            `color:${style.fontColor || "#252a32"}`, "line-height:1.35", "overflow:hidden"
+          ].join(";"));
+          const content = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+          content.style.width = "100%";
+          content.innerHTML = safeMarkup(value);
+          label.append(content);
+          foreign.append(label);
+          group.append(foreign);
+        }
+        svg.append(group);
+      }
+      svg.hidden = false;
+      status.hidden = true;
+      pageButtons.forEach((button) => button.setAttribute("aria-pressed", String(Number(button.dataset.page) === index)));
+    }
+
+    async function init() {
+      try {
+        const response = await fetch("./portfolio-hifi-framework-clean.drawio");
+        if (!response.ok) throw new Error(`Framework file returned HTTP ${response.status}.`);
+        const xml = new DOMParser().parseFromString(await response.text(), "application/xml");
+        if (xml.querySelector("parsererror")) throw new Error("The framework file is not valid draw.io XML.");
+        pages = [...xml.querySelectorAll("mxfile > diagram")];
+        if (pages.length === 0) throw new Error("No framework pages were found.");
+        renderPage(activePage);
+      } catch (error) {
+        status.textContent = `${error.message} Keep the localhost server running and refresh this page.`;
+      }
+    }
+
+    pageButtons.forEach((button) => button.addEventListener("click", () => {
+      const index = Number(button.dataset.page);
+      if (pages[index]) {
+        activePage = index;
+        renderPage(index);
+      }
+    }));
+    init();
+  </script>
+</body>
+</html>
